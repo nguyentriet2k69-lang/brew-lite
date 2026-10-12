@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link'; // 1. Thêm dòng import này ở đầu file
 import { Product } from '@/app/types/product';
 import { ProductCard } from '@/app/components/ProductCard';
 
@@ -33,9 +34,14 @@ export default function HomePage() {
       {/* Header */}
       <header className="max-w-4xl mx-auto flex justify-between items-center pb-6 mb-6 border-b">
         <h1 className="text-2xl font-bold text-emerald-700">BrewLite</h1>
-        <button className="bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-medium">
+        
+        {/* 2. Thay <button> thành <Link href="/cart"> */}
+        <Link 
+          href="/cart"
+          className="bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition inline-block text-center"
+        >
           Xem giỏ hàng
-        </button>
+        </Link>
       </header>
 
       {/* Main Content */}
