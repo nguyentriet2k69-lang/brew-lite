@@ -7,7 +7,7 @@ export default function CartPage() {
   const { items, removeItem, increaseQuantity, decreaseQuantity, clearCart } = useCartStore();
 
   // Tự động tính tổng tiền đơn hàng
-  const totalAmount = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const totalAmount = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   
   // Tính tổng số lượng món cho Badge ở tiêu đề
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -43,32 +43,36 @@ export default function CartPage() {
         {/* Danh sách sản phẩm trong giỏ */}
         <div className="divide-y divide-gray-200">
           {items.map((item) => (
-            <div key={item.id} className="py-4 flex justify-between items-center">
+            <div key={item.cartId} className="py-4 flex justify-between items-center">
               <div>
                 <h3 className="font-semibold text-gray-800">{item.name}</h3>
+                <p className="text-sm text-gray-500">
+                  Size {item.size}
+                  {item.toppings.length > 0 && ` · ${item.toppings.map((topping) => topping.name).join(', ')}`}
+                </p>
                 <p className="text-sm text-emerald-600 font-medium">
-                  {(item.price * item.quantity).toLocaleString('vi-VN')} đ 
-                  <span className="text-gray-400 text-xs ml-1">({item.price.toLocaleString('vi-VN')} đ/món)</span>
+                  {(item.unitPrice * item.quantity).toLocaleString('vi-VN')} đ
+                  <span className="text-gray-400 text-xs ml-1">({item.unitPrice.toLocaleString('vi-VN')} đ/món)</span>
                 </p>
               </div>
 
               {/* Cụm điều chỉnh số lượng & xóa */}
               <div className="flex items-center space-x-3">
                 <button
-                  onClick={() => decreaseQuantity(item.id)}
+                  onClick={() => decreaseQuantity(item.cartId)}
                   className="bg-gray-200 w-7 h-7 rounded text-gray-700 font-bold hover:bg-gray-300 flex items-center justify-center"
                 >
                   -
                 </button>
                 <span className="font-medium w-6 text-center">{item.quantity}</span>
                 <button
-                  onClick={() => increaseQuantity(item.id)}
+                  onClick={() => increaseQuantity(item.cartId)}
                   className="bg-gray-200 w-7 h-7 rounded text-gray-700 font-bold hover:bg-gray-300 flex items-center justify-center"
                 >
                   +
                 </button>
                 <button
-                  onClick={() => removeItem(item.id)}
+                  onClick={() => removeItem(item.cartId)}
                   className="text-red-500 text-sm font-medium ml-4 hover:underline"
                 >
                   Xóa
