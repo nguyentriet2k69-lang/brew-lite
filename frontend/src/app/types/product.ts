@@ -1,8 +1,8 @@
 export interface Product {
   id: string | number;
   name: string;
-  price: number; // giá gốc (size M)
-  imageUrl: string;
+  price: number;
+  imageUrl?: string;
   description?: string;
   stock?: number;
 }

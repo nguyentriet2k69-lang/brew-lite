@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" role="img" aria-labelledby="title">
+  <title id="title">BrewLite drink placeholder</title>
+  <rect width="640" height="640" fill="#f1f6f2"/>
+  <path d="M255 205c-32-32 28-45 0-78m72 78c-32-32 28-45 0-78m72 78c-32-32 28-45 0-78" fill="none" stroke="#739887" stroke-linecap="round" stroke-width="12"/>
+  <path d="M176 255h258l-23 205a32 32 0 0 1-32 28H231a32 32 0 0 1-32-28z" fill="#fff" stroke="#176b55" stroke-linejoin="round" stroke-width="14"/>
+  <path d="M434 290h27a55 55 0 0 1 0 110h-39" fill="none" stroke="#176b55" stroke-linecap="round" stroke-width="14"/>
+  <path d="M228 350h152" stroke="#c78a52" stroke-linecap="round" stroke-width="12"/>
+  <path d="M195 506h264" stroke="#176b55" stroke-linecap="round" stroke-width="14"/>
+  <text x="320" y="567" fill="#425d50" font-family="Arial, sans-serif" font-size="26" text-anchor="middle">BrewLite</text>
+</svg>

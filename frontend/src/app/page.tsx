@@ -1,75 +1,78 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link'; // 1. Thêm dòng import này ở đầu file
-import { Product } from '@/app/types/product';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import Link from 'next/link';
 import { ProductCard } from '@/app/components/ProductCard';
+import { getProducts, MOCK_PRODUCTS } from '@/app/lib/api';
+import { Product } from '@/app/types/product';
+import { useCartStore } from '@/app/store/useCartStore';
+
+const subscribeToCart = (onStoreChange: () => void) => useCartStore.subscribe(onStoreChange);
+const getCartQuantity = () =>
+  useCartStore.getState().items.reduce((total, item) => total + item.quantity, 0);
+const getServerCartQuantity = () => 0;
 
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [usingMockData, setUsingMockData] = useState(false);
+  const cartQuantity = useSyncExternalStore(
+    subscribeToCart,
+    getCartQuantity,
+    getServerCartQuantity,
+  );
 
   useEffect(() => {
-    // Gọi API lấy danh sách sản phẩm từ backend
-    fetch('http://localhost:3000/products')
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error('Không thể tải danh sách sản phẩm');
-        }
-        return res.json();
+    const controller = new AbortController();
+
+    getProducts(controller.signal)
+      .then(setProducts)
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setProducts(MOCK_PRODUCTS);
+        setUsingMockData(true);
       })
-      .then((data) => {
-        setProducts(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
       });
+
+    return () => controller.abort();
   }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      {/* Header */}
       <header className="max-w-4xl mx-auto flex justify-between items-center pb-6 mb-6 border-b">
         <h1 className="text-2xl font-bold text-emerald-700">BrewLite</h1>
-        
-        {/* 2. Thay <button> thành <Link href="/cart"> */}
-        <Link 
+        <Link
           href="/cart"
-          className="bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition inline-block text-center"
+          className="bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition"
         >
           Xem giỏ hàng
+          {cartQuantity > 0 && (
+            <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-xs font-bold text-white">
+              {cartQuantity}
+            </span>
+          )}
         </Link>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-4xl mx-auto">
         <h2 className="text-xl font-semibold mb-4 text-gray-700">Danh sách đồ uống</h2>
 
-        {/* 1. Trạng thái Đang tải dữ liệu */}
-        {loading && (
-          <div className="text-center py-10 text-gray-500">Đang tải dữ liệu...</div>
+        {usingMockData && (
+          <p className="mb-4 text-sm text-amber-700" role="status">
+            Backend chưa kết nối; đang hiển thị sản phẩm mẫu.
+          </p>
         )}
 
-        {/* 2. Trạng thái Bị lỗi */}
-        {error && (
-          <div className="text-center py-10 text-red-500">
-            Lỗi: {error}. Vui lòng kiểm tra xem Backend NestJS đã bật chưa!
-          </div>
-        )}
-
-        {/* 3. Trạng thái Chưa có sản phẩm */}
-        {!loading && !error && products.length === 0 && (
-          <div className="text-center py-10 text-gray-500">Hiện chưa có sản phẩm nào.</div>
-        )}
-
-        {/* 4. Hiển thị Lưới sản phẩm (2 cột) */}
-        {!loading && !error && products.length > 0 && (
+        {loading ? (
+          <p className="text-center py-10 text-gray-500">Đang tải sản phẩm...</p>
+        ) : products.length === 0 ? (
+          <p className="text-center py-10 text-gray-500">Hiện chưa có sản phẩm nào.</p>
+        ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {products.map((item) => (
-              <ProductCard key={item.id} product={item} />
+            {products.map((product) => (
+              <ProductCard key={product.id} product={product} />
             ))}
           </div>
         )}

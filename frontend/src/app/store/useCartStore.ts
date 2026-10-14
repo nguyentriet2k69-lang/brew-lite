@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { Product, Size, Topping } from '@/app/types/product';
+import { persist } from 'zustand/middleware';
+import type { Product, Size, Topping } from '@/app/types/product';
 
 export interface CartItem extends Product {
   cartId: string;
@@ -18,50 +19,55 @@ interface CartState {
   clearCart: () => void;
 }
 
-export const useCartStore = create<CartState>((set) => ({
-  items: [],
+export const useCartStore = create<CartState>()(
+  persist(
+    (set) => ({
+      items: [],
 
-  addItem: (product, size, toppings, unitPrice) =>
-    set((state) => {
-      const toppingIds = toppings
-        .map((topping) => topping.id)
-        .sort((left, right) => String(left).localeCompare(String(right)));
-      const cartId = JSON.stringify([product.id, size, toppingIds]);
-      const existingItem = state.items.find((item) => item.cartId === cartId);
+      addItem: (product, size, toppings, unitPrice) =>
+        set((state) => {
+          const toppingIds = toppings
+            .map((topping) => topping.id)
+            .sort((left, right) => String(left).localeCompare(String(right)));
+          const cartId = JSON.stringify([product.id, size, toppingIds]);
+          const existingItem = state.items.find((item) => item.cartId === cartId);
 
-      if (existingItem) {
-        return {
+          if (existingItem) {
+            return {
+              items: state.items.map((item) =>
+                item.cartId === cartId ? { ...item, quantity: item.quantity + 1 } : item,
+              ),
+            };
+          }
+
+          return {
+            items: [...state.items, { ...product, cartId, quantity: 1, size, toppings, unitPrice }],
+          };
+        }),
+
+      removeItem: (cartId) =>
+        set((state) => ({
+          items: state.items.filter((item) => item.cartId !== cartId),
+        })),
+
+      increaseQuantity: (cartId) =>
+        set((state) => ({
           items: state.items.map((item) =>
-            item.cartId === cartId ? { ...item, quantity: item.quantity + 1 } : item
+            item.cartId === cartId ? { ...item, quantity: item.quantity + 1 } : item,
           ),
-        };
-      }
+        })),
 
-      return {
-        items: [...state.items, { ...product, cartId, quantity: 1, size, toppings, unitPrice }],
-      };
+      decreaseQuantity: (cartId) =>
+        set((state) => ({
+          items: state.items.map((item) =>
+            item.cartId === cartId && item.quantity > 1
+              ? { ...item, quantity: item.quantity - 1 }
+              : item,
+          ),
+        })),
+
+      clearCart: () => set({ items: [] }),
     }),
-
-  removeItem: (cartId) =>
-    set((state) => ({
-      items: state.items.filter((item) => item.cartId !== cartId),
-    })),
-
-  increaseQuantity: (cartId) =>
-    set((state) => ({
-      items: state.items.map((item) =>
-        item.cartId === cartId ? { ...item, quantity: item.quantity + 1 } : item
-      ),
-    })),
-
-  decreaseQuantity: (cartId) =>
-    set((state) => ({
-      items: state.items.map((item) =>
-        item.cartId === cartId && item.quantity > 1
-          ? { ...item, quantity: item.quantity - 1 }
-          : item
-      ),
-    })),
-
-  clearCart: () => set({ items: [] }),
-}));
+    { name: 'brew-lite-cart' },
+  ),
+);

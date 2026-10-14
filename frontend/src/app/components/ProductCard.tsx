@@ -1,37 +1,29 @@
-import Link from 'next/link'; // 1. Import Link từ next/link
-import { Product } from '@/app/types/product';
+import Link from 'next/link';
+import type { Product } from '@/app/types/product';
+import ProductImage from './ProductImage';
 
 export function ProductCard({ product }: { product: Product }) {
   return (
-    <div className="relative bg-white rounded-lg shadow p-4 flex flex-col justify-between border border-gray-100 overflow-hidden">
-      <Link href={`/${product.id}`} className="group cursor-pointer">
-        <div>
-          {product.imageUrl ? (
-            <img
-              src={product.imageUrl}
-              alt={product.name}
-              className="w-full h-40 object-cover rounded-md mb-3 group-hover:opacity-90 transition"
-            />
-          ) : (
-            <div className="w-full h-40 bg-gray-100 rounded-md mb-3 flex items-center justify-center text-gray-400 text-sm">
-              Không có ảnh
-            </div>
-          )}
-          <h3 className="font-bold text-gray-800 text-lg group-hover:text-emerald-600 transition">
-            {product.name}
-          </h3>
-          <p className="text-emerald-600 font-semibold mt-1">
-            {product.price.toLocaleString('vi-VN')} đ
-          </p>
-        </div>
+    <article className="flex flex-col justify-between overflow-hidden rounded-lg border border-gray-100 bg-white p-4 shadow-sm">
+      <Link href={`/products/${product.id}`} className="group">
+        <ProductImage
+          src={product.imageUrl}
+          alt={product.name}
+          className="mb-3 h-40 w-full rounded-md object-cover transition group-hover:opacity-90"
+        />
+        <h3 className="text-lg font-bold text-gray-800 transition group-hover:text-emerald-700">
+          {product.name}
+        </h3>
+        <p className="mt-1 font-semibold text-emerald-700">
+          {product.price.toLocaleString('vi-VN')} đ
+        </p>
       </Link>
-
       <Link
-        href={`/${product.id}`}
-        className="mt-4 bg-emerald-600 text-white py-2 rounded-md text-sm font-medium hover:bg-emerald-700 transition text-center"
+        href={`/products/${product.id}`}
+        className="mt-4 rounded-md bg-emerald-700 py-2 text-center text-sm font-semibold text-white transition hover:bg-emerald-800"
       >
         Chọn
       </Link>
-    </div>
+    </article>
   );
 }

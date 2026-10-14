@@ -1,15 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import Image from 'next/image';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Product, Size, Topping } from '../types/product';
-import SizeSelector from './SizeSelector';
-import ToppingSelector from './ToppingSelector';
-import { useCartStore } from '../store/useCartStore';
+import type { Product, Size, Topping } from '@/app/types/product';
+import { useCartStore } from '@/app/store/useCartStore';
+import ProductImage from './ProductImage';
 
-// Topping mẫu (có thể chuyển sang API sau)
 const AVAILABLE_TOPPINGS: Topping[] = [
   { id: 1, name: 'Trân châu', price: 10000 },
   { id: 2, name: 'Kem cheese', price: 15000 },
@@ -17,124 +14,121 @@ const AVAILABLE_TOPPINGS: Topping[] = [
   { id: 4, name: 'Pudding', price: 12000 },
 ];
 
-// Hệ số giá theo size
-const SIZE_MULTIPLIER: Record<Size, number> = {
-  S: 0.8, // giảm 20%
-  M: 1,   // giá gốc
-  L: 1.3, // tăng 30%
-};
+const SIZE_MULTIPLIER: Record<Size, number> = { S: 0.8, M: 1, L: 1.3 };
+const SIZES: Size[] = ['S', 'M', 'L'];
 
-interface ProductDetailProps {
-  product: Product;
-}
-
-export default function ProductDetail({ product }: ProductDetailProps) {
+export default function ProductDetail({ product }: { product: Product }) {
   const router = useRouter();
   const addItem = useCartStore((state) => state.addItem);
   const [selectedSize, setSelectedSize] = useState<Size>('M');
-  const [selectedToppings, setSelectedToppings] = useState<(string | number)[]>([]);
+  const [selectedToppingIds, setSelectedToppingIds] = useState<(string | number)[]>([]);
+  const selectedToppings = AVAILABLE_TOPPINGS.filter((topping) =>
+    selectedToppingIds.includes(topping.id),
+  );
+  const totalPrice = useMemo(
+    () =>
+      Math.round(
+        product.price * SIZE_MULTIPLIER[selectedSize] +
+          selectedToppings.reduce((sum, topping) => sum + topping.price, 0),
+      ),
+    [product.price, selectedSize, selectedToppings],
+  );
+  const isOutOfStock = (product.stock ?? 1) <= 0;
 
-  // Tính giá động
-  const totalPrice = useMemo(() => {
-    const basePrice = product.price * SIZE_MULTIPLIER[selectedSize];
-    const toppingPrice = selectedToppings.reduce((sum: number, id) => {
-    const topping = AVAILABLE_TOPPINGS.find((t) => t.id === id);
-    return sum + (topping?.price || 0);
-    }, 0);
-    return Math.round(basePrice + toppingPrice);
-  }, [product.price, selectedSize, selectedToppings]);
-
-  const toggleTopping = (id: (string | number)) => {
-    setSelectedToppings((prev) =>
-      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+  const toggleTopping = (id: string | number) => {
+    setSelectedToppingIds((current) =>
+      current.includes(id) ? current.filter((selectedId) => selectedId !== id) : [...current, id],
     );
   };
 
   const handleAddToCart = () => {
-    const toppings = AVAILABLE_TOPPINGS.filter((topping) =>
-      selectedToppings.includes(topping.id)
-    );
-
-    addItem(product, selectedSize, toppings, totalPrice);
+    addItem(product, selectedSize, selectedToppings, totalPrice);
     router.push('/');
   };
 
-  const isOutOfStock = (product.stock ?? 1) <= 0;
-
   return (
-    <div className="max-w-5xl mx-auto">
-      {/* Nút quay lại */}
-      <Link
-        href="/"
-        className="inline-flex items-center gap-1 text-gray-500 hover:text-amber-700 mb-6 transition"
-      >
+    <div className="mx-auto max-w-5xl">
+      <Link href="/" className="mb-6 inline-flex text-gray-500 transition hover:text-emerald-700">
         ← Quay lại menu
       </Link>
+      <div className="grid gap-8 md:grid-cols-2 lg:gap-12">
+        <ProductImage
+          src={product.imageUrl}
+          alt={product.name}
+          className="aspect-square w-full rounded-xl bg-gray-100 object-cover"
+        />
 
-      <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
-        {/* Hình ảnh */}
-        <div className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100 shadow-sm">
-          <Image
-            src={product.imageUrl || '/placeholder.jpg'}
-            alt={product.name}
-            fill
-            className="object-cover"
-            sizes="(max-width: 768px) 100vw, 50vw"
-            priority
-          />
-        </div>
-
-        {/* Thông tin + tùy chọn */}
         <div className="flex flex-col gap-6">
-          {/* Tên + mô tả */}
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight">
-              {product.name}
-            </h1>
-            {product.description && (
-              <p className="text-gray-500 mt-2 leading-relaxed">{product.description}</p>
-            )}
+            <h1 className="text-3xl font-bold text-gray-900">{product.name}</h1>
+            {product.description && <p className="mt-2 text-gray-600">{product.description}</p>}
           </div>
 
-          {/* Giá động */}
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-amber-700">
-              {totalPrice.toLocaleString('vi-VN')}đ
-            </span>
-            {selectedSize !== 'M' || selectedToppings.length > 0 ? (
-              <span className="text-sm text-gray-400 line-through">
-                {product.price.toLocaleString('vi-VN')}đ
-              </span>
-            ) : null}
-          </div>
+          <p className="text-3xl font-bold text-emerald-700">
+            {totalPrice.toLocaleString('vi-VN')} đ
+          </p>
 
-          {/* Size */}
-          <SizeSelector selectedSize={selectedSize} onChange={setSelectedSize} />
+          <fieldset>
+            <legend className="mb-3 font-semibold text-gray-800">Chọn size</legend>
+            <div className="flex gap-3">
+              {SIZES.map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  aria-pressed={selectedSize === size}
+                  onClick={() => setSelectedSize(size)}
+                  className={`h-14 w-14 rounded-full border-2 font-semibold transition ${
+                    selectedSize === size
+                      ? 'border-emerald-700 bg-emerald-50 text-emerald-800'
+                      : 'border-gray-300 text-gray-600 hover:border-emerald-500'
+                  }`}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-sm text-gray-500">
+              {selectedSize === 'S' ? 'Size S · giảm 20%' : selectedSize === 'L' ? 'Size L · tăng 30%' : 'Size M · giá gốc'}
+            </p>
+          </fieldset>
 
-          {/* Topping */}
-          <ToppingSelector
-            toppings={AVAILABLE_TOPPINGS}
-            selectedIds={selectedToppings}
-            onToggle={toggleTopping}
-          />
+          <fieldset>
+            <legend className="mb-3 font-semibold text-gray-800">Chọn topping</legend>
+            <div className="space-y-2">
+              {AVAILABLE_TOPPINGS.map((topping) => {
+                const checked = selectedToppingIds.includes(topping.id);
+                return (
+                  <label
+                    key={topping.id}
+                    className={`flex cursor-pointer items-center justify-between rounded-lg border p-3 transition ${
+                      checked ? 'border-emerald-600 bg-emerald-50' : 'border-gray-200 hover:border-emerald-300'
+                    }`}
+                  >
+                    <span className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleTopping(topping.id)}
+                        className="h-4 w-4 accent-emerald-700"
+                      />
+                      <span>{topping.name}</span>
+                    </span>
+                    <span className="text-sm text-gray-600">
+                      +{topping.price.toLocaleString('vi-VN')} đ
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
 
-          {/* Nút thêm vào giỏ */}
           <button
             type="button"
             onClick={handleAddToCart}
             disabled={isOutOfStock}
-            className={`
-              w-full py-4 rounded-xl font-semibold text-lg transition-all
-              ${
-                isOutOfStock
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-amber-600 hover:bg-amber-700 text-white shadow-md hover:shadow-lg active:scale-[0.98]'
-              }
-            `}
+            className="w-full rounded-lg bg-emerald-700 py-4 text-lg font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
-            {isOutOfStock
-              ? 'Hết hàng'
-              : `Thêm vào giỏ – ${totalPrice.toLocaleString('vi-VN')}đ`}
+            {isOutOfStock ? 'Hết hàng' : `Thêm vào giỏ · ${totalPrice.toLocaleString('vi-VN')} đ`}
           </button>
         </div>
       </div>

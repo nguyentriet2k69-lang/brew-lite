@@ -1,6 +1,16 @@
 import { Product } from '../types/product';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
+export async function getProducts(signal?: AbortSignal): Promise<Product[]> {
+  const res = await fetch(`${API_URL}/products`, { signal });
+
+  if (!res.ok) {
+    throw new Error('Không thể tải danh sách sản phẩm');
+  }
+
+  return res.json();
+}
 
 /**
  * Lấy chi tiết sản phẩm theo ID
