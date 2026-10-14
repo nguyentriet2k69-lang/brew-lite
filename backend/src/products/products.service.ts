@@ -1,36 +1,49 @@
-import { Injectable } from '@nestjs/common';
-import { Product } from './entities/product.entity';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateProductDto } from './dto/create-product.dto';
 
+interface ProductRecord {
+  id: string;
+  name: string;
+  description: string | null;
+  price: unknown;
+  imageUrl: string;
+  category: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 @Injectable()
 export class ProductsService {
-  // Dữ liệu mẫu đồ uống (hard-code)
-  private products: Product[] = [
-    {
-      id: 1,
-      name: 'Cà phê đen',
-      price: 25000,
-      imageUrl: '/images/ca_phe_den.png',
-    },
-    {
-      id: 2,
-      name: 'Bac xỉu',
-      price: 29000,
-      imageUrl: '/images/bac_xiu.png',
-    },
-    {
-      id: 3,
-      name: 'Trà đào cam sả',
-      price: 35000,
-      imageUrl: '/images/tra_dao_cam_sa.png',
-    },
-  ];
+  constructor(private readonly prisma: PrismaService) {}
 
-  findAll(): Product[] {
-    return this.products;
+  async findAll() {
+    const products: ProductRecord[] = await this.prisma.product.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+    return products.map((product: ProductRecord) => this.toResponse(product));
   }
 
-  findOne(id: number): Product | undefined {
-  return this.products.find((product) => product.id === id);
+  async findOne(id: string) {
+    const product: ProductRecord | null = await this.prisma.product.findUnique({ where: { id } });
+    if (!product) throw new NotFoundException('Product not found');
+    return this.toResponse(product);
+  }
+
+  async create(dto: CreateProductDto) {
+    const product: ProductRecord = await this.prisma.product.create({
+      data: {
+        name: dto.name.trim(),
+        description: dto.description?.trim(),
+        price: dto.price,
+        imageUrl: dto.imageUrl.trim(),
+        category: dto.category.trim(),
+      },
+    });
+    return this.toResponse(product);
+  }
+
+  private toResponse(product: ProductRecord) {
+    return { ...product, price: Number(product.price) };
   }
 }

@@ -1,5 +1,10 @@
-import { Controller, Get, Param, NotFoundException } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { USER_ROLES } from '../auth/user-role';
 import { ProductsService } from './products.service'; // Đường dẫn trỏ tới service của bạn
+import { CreateProductDto } from './dto/create-product.dto';
 
 @Controller('products')
 export class ProductsController {
@@ -14,10 +19,13 @@ export class ProductsController {
   // API lấy chi tiết 1 sản phẩm theo ID: GET /products/:id
   @Get(':id')
   findOne(@Param('id') id: string) {
-    const product = this.productsService.findOne(Number(id));
-    if (!product) {
-      throw new NotFoundException(`Không tìm thấy sản phẩm với ID là ${id}`);
-    }
-    return product;
+    return this.productsService.findOne(id);
+  }
+
+  @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(USER_ROLES.ADMIN)
+  create(@Body() dto: CreateProductDto) {
+    return this.productsService.create(dto);
   }
 }

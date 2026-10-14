@@ -1,6 +1,10 @@
 export class Product {
-  id: number;
+  id: string;
   name: string;
   price: number;
   imageUrl: string;
+  description?: string;
+  category: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
