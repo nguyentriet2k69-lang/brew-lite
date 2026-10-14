@@ -10,19 +10,19 @@ export class ProductsService {
       id: 1,
       name: 'Cà phê đen',
       price: 25000,
-      imageUrl: 'https://via.placeholder.com/150',
+      imageUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=900&auto=format&fit=crop&q=80',
     },
     {
       id: 2,
       name: 'Cà phê sữa',
       price: 29000,
-      imageUrl: 'https://via.placeholder.com/150',
+      imageUrl: 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=900&auto=format&fit=crop&q=80',
     },
     {
       id: 3,
       name: 'Trà đào cam sả',
       price: 35000,
-      imageUrl: 'https://via.placeholder.com/150',
+      imageUrl: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=900&auto=format&fit=crop&q=80',
     },
   ];
 

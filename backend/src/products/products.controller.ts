@@ -2,7 +2,7 @@ import { Controller, Get, Param, NotFoundException } from '@nestjs/common';
 import { ProductsService } from './products.service'; // Đường dẫn trỏ tới service của bạn
 
 @Controller('products')
-export class AppController {
+export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   // API lấy toàn bộ danh sách sản phẩm: GET /products
