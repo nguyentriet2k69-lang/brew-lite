@@ -3,9 +3,10 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { ProductCard } from '@/app/components/ProductCard';
-import { getProducts, MOCK_PRODUCTS } from '@/app/lib/api';
+import { getProducts } from '@/app/lib/api';
 import { Product } from '@/app/types/product';
 import { useCartStore } from '@/app/store/useCartStore';
+import { useAuthStore } from '@/app/store/useAuthStore';
 
 const subscribeToCart = (onStoreChange: () => void) => useCartStore.subscribe(onStoreChange);
 const getCartQuantity = () =>
@@ -15,7 +16,9 @@ const getServerCartQuantity = () => 0;
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [usingMockData, setUsingMockData] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const user = useAuthStore((state) => state.user);
+  const clearSession = useAuthStore((state) => state.clearSession);
   const cartQuantity = useSyncExternalStore(
     subscribeToCart,
     getCartQuantity,
@@ -27,10 +30,9 @@ export default function HomePage() {
 
     getProducts(controller.signal)
       .then(setProducts)
-      .catch(() => {
+      .catch((requestError: unknown) => {
         if (controller.signal.aborted) return;
-        setProducts(MOCK_PRODUCTS);
-        setUsingMockData(true);
+        setError(requestError instanceof Error ? requestError.message : 'Không thể tải sản phẩm');
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -47,26 +49,47 @@ export default function HomePage() {
           href="/cart"
           className="bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition"
         >
-          Xem giỏ hàng
+          Giỏ hàng
           {cartQuantity > 0 && (
             <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-xs font-bold text-white">
               {cartQuantity}
             </span>
           )}
         </Link>
+        <div className="flex items-center gap-3">
+          {user ? (
+            <>
+              <span className="text-sm text-gray-600">Xin chào, {user.name}</span>
+              <button
+                type="button"
+                onClick={clearSession}
+                className="text-sm font-medium text-emerald-700 hover:underline"
+              >
+                Đăng xuất
+              </button>
+            </>
+          ) : (
+            <>
+              <Link href="/login" className="text-sm font-medium text-gray-700 hover:text-emerald-700">
+                Đăng nhập
+              </Link>
+              <Link href="/register" className="text-sm font-medium text-emerald-700 hover:underline">
+                Đăng ký
+              </Link>
+            </>
+          )}
+        </div>
       </header>
 
       <main className="max-w-4xl mx-auto">
         <h2 className="text-xl font-semibold mb-4 text-gray-700">Danh sách đồ uống</h2>
 
-        {usingMockData && (
-          <p className="mb-4 text-sm text-amber-700" role="status">
-            Backend chưa kết nối; đang hiển thị sản phẩm mẫu.
-          </p>
-        )}
-
         {loading ? (
           <p className="text-center py-10 text-gray-500">Đang tải sản phẩm...</p>
+        ) : error ? (
+          <p className="py-10 text-center text-red-600" role="alert">
+            {error}. Hãy kiểm tra API và kết nối database.
+          </p>
         ) : products.length === 0 ? (
           <p className="text-center py-10 text-gray-500">Hiện chưa có sản phẩm nào.</p>
         ) : (

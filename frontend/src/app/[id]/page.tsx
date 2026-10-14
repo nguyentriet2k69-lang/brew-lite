@@ -1,6 +1,13 @@
 import ProductDetail from '../components/ProductDetail';
-import { getProductById, getMockProductById } from '../lib/api';
-import { notFound } from 'next/navigation';
+import { getProductById } from '../lib/api';
+import type { Product } from '../types/product';
+import { notFound, redirect } from 'next/navigation';
+
+const LEGACY_PRODUCT_IDS: Record<string, string> = {
+  '1': 'coffee-den',
+  '2': 'bac-xiu',
+  '3': 'tra-dao-cam-sa',
+};
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -8,18 +15,14 @@ interface PageProps {
 
 export default async function ProductDetailPage({ params }: PageProps) {
   const { id } = await params;
+  const currentId = LEGACY_PRODUCT_IDS[id];
+  if (currentId) redirect(`/products/${currentId}`);
 
-  let product;
+  let product: Product;
 
   try {
-    // Ưu tiên gọi API thật
     product = await getProductById(id);
   } catch {
-    // Fallback sang dữ liệu mẫu khi backend chưa sẵn sàng
-    product = getMockProductById(id);
-  }
-
-  if (!product) {
     notFound();
   }
 

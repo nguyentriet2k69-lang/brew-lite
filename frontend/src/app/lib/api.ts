@@ -1,15 +1,25 @@
 import { Product } from '../types/product';
+import type { AuthResponse, LoginInput, RegisterInput } from '../types/auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-export async function getProducts(signal?: AbortSignal): Promise<Product[]> {
-  const res = await fetch(`${API_URL}/products`, { signal });
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, init);
+  const body: unknown = await response.json().catch(() => null);
 
-  if (!res.ok) {
-    throw new Error('Không thể tải danh sách sản phẩm');
+  if (!response.ok) {
+    const message =
+      typeof body === 'object' && body !== null && 'message' in body
+        ? (body as { message?: string | string[] }).message
+        : undefined;
+    throw new Error(Array.isArray(message) ? message.join(', ') : message || 'Yêu cầu thất bại');
   }
 
-  return res.json();
+  return body as T;
+}
+
+export async function getProducts(signal?: AbortSignal): Promise<Product[]> {
+  return request<Product[]>('/products', { signal });
 }
 
 /**
@@ -17,55 +27,32 @@ export async function getProducts(signal?: AbortSignal): Promise<Product[]> {
  * Gọi API backend NestJS: GET /products/:id
  */
 export async function getProductById(id: string | number): Promise<Product> {
-  const res = await fetch(`${API_URL}/products/${id}`, {
-    next: { revalidate: 60 },
-  });
-
-  if (!res.ok) {
-    throw new Error('Không tìm thấy sản phẩm');
-  }
-
-  return res.json();
+  return request<Product>(`/products/${encodeURIComponent(String(id))}`);
 }
 
-/**
- * Dữ liệu mẫu dùng khi backend chưa sẵn sàng (dev / demo)
- */
-export const MOCK_PRODUCTS: Product[] = [
-  {
-    id: 1,
-    name: 'Cà phê sữa',
-    price: 35000,
-    imageUrl: 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=600',
-    description: 'Cà phê sữa đá truyền thống, đậm đà.',
-    stock: 50,
-  },
-  {
-    id: 2,
-    name: 'Americano',
-    price: 40000,
-    imageUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600',
-    description: 'Espresso pha loãng với nước nóng.',
-    stock: 40,
-  },
-  {
-    id: 3,
-    name: 'Cappuccino',
-    price: 45000,
-    imageUrl: 'https://images.unsplash.com/photo-1572442388796-11668a67e53d?w=600',
-    description: 'Espresso, sữa nóng và foam mịn.',
-    stock: 35,
-  },
-  {
-    id: 4,
-    name: 'Trà đào',
-    price: 39000,
-    imageUrl: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600',
-    description: 'Trà đen kết hợp đào tươi mát lạnh.',
-    stock: 45,
-  },
-];
+export function registerUser(input: RegisterInput): Promise<AuthResponse> {
+  return request<AuthResponse>('/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
 
-export function getMockProductById(id: string | number): Product | undefined {
-  return MOCK_PRODUCTS.find((p) => p.id === Number(id));
+export function loginUser(input: LoginInput): Promise<AuthResponse> {
+  return request<AuthResponse>('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function createProduct(input: Omit<Product, 'id'>, accessToken: string): Promise<Product> {
+  return request<Product>('/products', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(input),
+  });
 }
