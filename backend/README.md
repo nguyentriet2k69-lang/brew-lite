@@ -116,3 +116,7 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+## Mock payment
+
+Thêm `MOCK_PAYMENT_RESULT=success` vào file `.env` (mặc định thành công); đặt thành `failure` để mô phỏng giao dịch thất bại. Khởi động lại backend sau khi chỉnh `.env`. Endpoint `POST /payments` yêu cầu JWT, nhận `{ "orderId": "...", "method": "WALLET" | "CARD" }` và không nhận amount từ client. Payment attempt cùng thay đổi trạng thái order được lưu trong một transaction. Cột `idempotencyKey` hiện chỉ được chuẩn bị cho Task 10; chưa có cơ chế idempotency hoàn chỉnh. Chạy `npm run prisma:generate` và `npm run prisma:migrate` sau khi cập nhật schema.

@@ -19,6 +19,16 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum PaymentMethod {
+  WALLET
+  CARD
+}
+
+enum PaymentStatus {
+  SUCCEEDED
+  FAILED
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -54,6 +64,7 @@ model Order {
   status      OrderStatus @default(PENDING)
   totalAmount Decimal     @db.Decimal(10, 2)
   items       OrderItem[]
+  payments    Payment[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -73,6 +84,20 @@ model OrderItem {
   quantity  Int
   unitPrice Decimal  @db.Decimal(10, 2)
   subtotal  Decimal  @db.Decimal(10, 2)
+
+  @@index([orderId])
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  orderId        String
+  order          Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  // Reserved for Task 10; Task 8 does not yet implement idempotency semantics.
+  idempotencyKey String?       @unique
+  amount         Decimal       @db.Decimal(10, 2)
+  method         PaymentMethod
+  status         PaymentStatus
+  createdAt      DateTime      @default(now())
 
   @@index([orderId])
 }
