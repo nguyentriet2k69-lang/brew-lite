@@ -6,7 +6,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { calcUnitPrice, type Size } from './pricing';
+import { calcUnitPrice, isToppingName, type ToppingName } from './pricing';
 
 function generateOrderCode(): string {
   const now = new Date();
@@ -41,19 +41,26 @@ export class OrdersService {
     // 2. Tính giá từng item + tổng
     const itemsData = dto.items.map((item) => {
       const product = productMap.get(item.productId)!;
-      const basePrice = Number(product.price);
-      const unitPrice = calcUnitPrice(
-        basePrice,
-        item.size as Size,
-        item.toppings.length,
-      );
+      const duplicateToppings =
+        new Set(item.toppings).size !== item.toppings.length;
+      if (duplicateToppings) {
+        throw new BadRequestException('Không được chọn topping trùng lặp');
+      }
+
+      const toppings: ToppingName[] = item.toppings.map((topping) => {
+        if (!isToppingName(topping)) {
+          throw new BadRequestException(`Topping không hợp lệ: ${topping}`);
+        }
+        return topping;
+      });
+      const unitPrice = calcUnitPrice(Number(product.price), item.size, toppings);
       const subtotal = unitPrice * item.quantity;
 
       return {
         productId: product.id,
         name: product.name,
         size: item.size,
-        toppings: item.toppings,
+        toppings,
         quantity: item.quantity,
         unitPrice: new Prisma.Decimal(unitPrice),
         subtotal: new Prisma.Decimal(subtotal),

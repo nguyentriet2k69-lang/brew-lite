@@ -1,27 +1,66 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { createOrder } from '@/app/lib/api';
+import { useAuthStore } from '@/app/store/useAuthStore';
 import { useCartStore } from '@/app/store/useCartStore';
 
 export default function CartPage() {
+  const router = useRouter();
   const items = useCartStore((state) => state.items);
   const increaseQuantity = useCartStore((state) => state.increaseQuantity);
   const decreaseQuantity = useCartStore((state) => state.decreaseQuantity);
   const removeItem = useCartStore((state) => state.removeItem);
   const clearCart = useCartStore((state) => state.clearCart);
   const [loaded, setLoaded] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      setLoaded(true);
-    });
-
+    const frame = requestAnimationFrame(() => setLoaded(true));
     return () => cancelAnimationFrame(frame);
   }, []);
 
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
   const totalPrice = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+
+  const handleCheckout = async () => {
+    setCheckoutError(null);
+    setCheckingOut(true);
+
+    try {
+      // Auth state is persisted with skipHydration, so hydrate before checking it.
+      await useAuthStore.persist.rehydrate();
+      const accessToken = useAuthStore.getState().accessToken;
+      if (!accessToken) {
+        router.push('/login?returnTo=%2Fcart');
+        return;
+      }
+
+      const order = await createOrder(
+        {
+          items: items.map((item) => ({
+            productId: String(item.id),
+            size: item.size,
+            toppings: item.toppings.map((topping) => topping.name),
+            quantity: item.quantity,
+          })),
+        },
+        accessToken,
+      );
+
+      // Keep the persisted cart until a payment response confirms success.
+      router.push(`/checkout/${encodeURIComponent(order.id)}`);
+    } catch (requestError) {
+      setCheckoutError(
+        requestError instanceof Error ? requestError.message : 'Không thể tạo đơn hàng. Vui lòng thử lại.',
+      );
+    } finally {
+      setCheckingOut(false);
+    }
+  };
 
   if (!loaded) {
     return <main className="p-6 text-center text-gray-500">Đang tải giỏ hàng...</main>;
@@ -67,7 +106,8 @@ export default function CartPage() {
                   type="button"
                   aria-label={`Giảm số lượng ${item.name}`}
                   onClick={() => decreaseQuantity(item.cartId)}
-                  className="h-8 w-8 rounded border border-gray-300 font-semibold hover:bg-gray-100"
+                  disabled={checkingOut}
+                  className="h-8 w-8 rounded border border-gray-300 font-semibold hover:bg-gray-100 disabled:opacity-50"
                 >
                   −
                 </button>
@@ -76,14 +116,16 @@ export default function CartPage() {
                   type="button"
                   aria-label={`Tăng số lượng ${item.name}`}
                   onClick={() => increaseQuantity(item.cartId)}
-                  className="h-8 w-8 rounded border border-gray-300 font-semibold hover:bg-gray-100"
+                  disabled={checkingOut}
+                  className="h-8 w-8 rounded border border-gray-300 font-semibold hover:bg-gray-100 disabled:opacity-50"
                 >
                   +
                 </button>
                 <button
                   type="button"
                   onClick={() => removeItem(item.cartId)}
-                  className="ml-2 text-sm font-medium text-red-600 hover:underline"
+                  disabled={checkingOut}
+                  className="ml-2 text-sm font-medium text-red-600 hover:underline disabled:opacity-50"
                 >
                   Xóa
                 </button>
@@ -92,17 +134,33 @@ export default function CartPage() {
           ))}
         </div>
 
-        <footer className="mt-6 flex items-center justify-between border-t border-gray-200 pt-5">
-          <span className="text-gray-600">Tổng cộng</span>
-          <strong className="text-xl text-emerald-800">{totalPrice.toLocaleString('vi-VN')} đ</strong>
+        <footer className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-gray-200 pt-5">
+          <div>
+            <p className="text-gray-600">Tổng cộng</p>
+            <strong className="text-xl text-emerald-800">{totalPrice.toLocaleString('vi-VN')} đ</strong>
+          </div>
           <button
             type="button"
             onClick={clearCart}
-            className="text-sm font-medium text-red-600 hover:underline"
+            disabled={checkingOut}
+            className="text-sm font-medium text-red-600 hover:underline disabled:opacity-50"
           >
             Xóa tất cả
           </button>
         </footer>
+
+        {checkoutError && <p className="mt-4 text-sm text-red-600" role="alert">{checkoutError}</p>}
+        <button
+          type="button"
+          onClick={handleCheckout}
+          disabled={checkingOut || items.length === 0}
+          className="mt-6 w-full rounded-lg bg-emerald-700 px-5 py-3 font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-wait disabled:opacity-60"
+        >
+          {checkingOut ? 'Đang tạo đơn hàng...' : `Tiến hành thanh toán · ${totalPrice.toLocaleString('vi-VN')} đ`}
+        </button>
+        <p className="mt-2 text-xs text-gray-500">
+          Số tiền cuối cùng được xác nhận từ đơn hàng do máy chủ tạo.
+        </p>
       </section>
     </main>
   );

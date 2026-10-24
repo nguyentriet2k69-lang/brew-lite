@@ -28,7 +28,12 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
         ? await registerUser({ name, email, password })
         : await loginUser({ email, password });
       setSession(session);
-      router.replace('/');
+      const requestedReturnTo = new URLSearchParams(window.location.search).get('returnTo');
+      const isAllowedReturnTo =
+        requestedReturnTo === '/cart' ||
+        /^\/checkout\/[A-Za-z0-9_-]+$/.test(requestedReturnTo ?? '') ||
+        /^\/confirmation\/[A-Za-z0-9_-]+$/.test(requestedReturnTo ?? '');
+      router.replace(isAllowedReturnTo ? requestedReturnTo! : '/');
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Không thể đăng nhập');
     } finally {

@@ -96,3 +96,57 @@ npm --prefix backend run build
 npm --prefix frontend run lint
 npm --prefix frontend run build
 ```
+
+## Thanh toán mock (Task 8)
+
+Thanh toán là mô phỏng nội bộ; không nhập thông tin thẻ thật và không gọi Momo/VNPay/Stripe. Sau khi cập nhật `backend/.env`, cấu hình kết quả ở phía backend:
+
+```env
+MOCK_PAYMENT_RESULT=success
+```
+
+- `success`: mock gateway trả kết quả thành công (mặc định khi không đặt biến).
+- `failure`: mock gateway trả thất bại để kiểm thử nhánh `PAYMENT_FAILED`.
+- Giá trị khác bị từ chối dưới dạng lỗi cấu hình, không tự giả định thành công.
+
+Khởi động lại backend sau khi sửa file `.env`. Có thể tạm đặt biến trực tiếp trong PowerShell trước khi chạy backend:
+
+```powershell
+$env:MOCK_PAYMENT_RESULT = "failure"
+npm --prefix backend run start:dev
+```
+
+Đặt lại thành `success` để demo thành công. Các giao dịch chỉ sử dụng kết quả mô phỏng; không lưu dữ liệu thẻ.
+
+### API đặt đơn và thanh toán
+
+`POST /orders` cần JWT và nhận các lựa chọn, không nhận giá từ frontend:
+
+```json
+{
+  "items": [
+    { "productId": "coffee-den", "size": "M", "toppings": ["Trân châu"], "quantity": 1 }
+  ]
+}
+```
+
+`POST /payments` cũng cần `Authorization: Bearer <JWT>`:
+
+```json
+{ "orderId": "<id-trả-về-từ-POST-orders>", "method": "WALLET" }
+```
+
+`method` nhận `WALLET` hoặc `CARD`. Backend tra cứu đơn thuộc user hiện tại và lấy `amount` từ `Order.totalAmount`; body không được gửi `amount` hay `userId`. Response tạo payment attempt gồm `id`, `orderId`, `orderCode`, `amount`, `method`, `status`, `orderStatus` và `createdAt`. `status` là `SUCCEEDED` hoặc `FAILED`; order lần lượt chuyển `PAID` hoặc `PAYMENT_FAILED`. Đơn `PAYMENT_FAILED` có thể thử lại, nhưng đơn `PAID`/`CANCELLED` không thể thanh toán lại. Schema có cột `idempotencyKey` nullable để mở rộng ở Task 10; Task 8 chưa triển khai semantics idempotency.
+
+### Migration và demo
+
+Sau khi cập nhật source, cài dependencies, sinh Prisma Client và áp dụng migration mới:
+
+```bash
+npm --prefix backend install
+npm --prefix frontend install
+npm --prefix backend run prisma:generate
+npm --prefix backend run prisma:migrate
+```
+
+Luồng UI: thêm món → giỏ hàng → đăng nhập nếu cần → tạo order → chọn Ví/Thẻ → xác nhận thanh toán. Cart chỉ được xóa sau response xác nhận `SUCCEEDED` + `PAID`; nếu mock thất bại hoặc API lỗi, cart được giữ lại và trang checkout cho phép retry đơn hiện tại khi trạng thái cho phép.
