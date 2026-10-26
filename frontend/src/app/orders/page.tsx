@@ -18,7 +18,11 @@ export default function OrderHistoryPage() {
     }
 
     getMyOrders(accessToken)
-      .then(setOrders)
+      .then((data) => {
+        // Chỉ lấy những đơn đã hoàn thành hoặc đã hủy
+        const validOrders = data.filter((o) => o.status !== 'PENDING');
+        setOrders(validOrders);
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [accessToken]);

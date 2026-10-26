@@ -56,6 +56,7 @@ export default function CheckoutPage() {
         setOrder(foundOrder);
 
         if (foundOrder.status === 'PAID') {
+          localStorage.removeItem('pendingOrderId');
           setNotice(
             'Đơn hàng này đã được thanh toán. Không thể tạo thêm lần thanh toán mới.',
           );
@@ -109,6 +110,7 @@ export default function CheckoutPage() {
         payment.status === 'SUCCEEDED' &&
         payment.orderStatus === 'PAID'
       ) {
+        localStorage.removeItem('pendingOrderId');
         clearCart();
         router.replace(`/confirmation/${encodeURIComponent(order.id)}`);
         return;
