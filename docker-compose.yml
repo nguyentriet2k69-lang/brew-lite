@@ -16,5 +16,35 @@ services:
       timeout: 5s
       retries: 10
 
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://brewlite:brewlite@postgres:5432/brewlite?schema=public
+      - JWT_SECRET="${JWT_SECRET:-dev-secret-change-me-in-production}"
+      - ADMIN_EMAIL=admin@brewlite.com
+      - ADMIN_PASSWORD=123456
+      - PRISMA_HIDE_UPDATE_MESSAGE=1
+      - CHECKPOINT_DISABLE=1
+      - PRISMA_DISABLE_TELEMETRY=1
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+      - NODE_OPTIONS=--max-old-space-size=4096
+    depends_on:
+      - backend
+
 volumes:
   brewlite-postgres:
