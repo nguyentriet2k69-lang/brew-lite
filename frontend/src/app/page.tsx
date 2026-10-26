@@ -51,17 +51,25 @@ export default function HomePage() {
           
           {/* CHỈ HIỆN NÚT GIỎ HÀNG KHI ĐÃ ĐĂNG NHẬP (user khác null) */}
           {user && (
-            <Link
-              href="/cart"
-              className="bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition"
-            >
-              Giỏ hàng
-              {cartQuantity > 0 && (
-                <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-xs font-bold text-white">
-                  {cartQuantity}
-                </span>
-              )}
-            </Link>
+            <>
+              <Link
+                href="/orders"
+                className="bg-emerald-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-emerald-700 transition"
+              >
+                Lịch sử đơn
+              </Link>
+              <Link
+                href="/cart"
+                className="bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition"
+              >
+                Giỏ hàng
+                {cartQuantity > 0 && (
+                  <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-xs font-bold text-white">
+                    {cartQuantity}
+                  </span>
+                )}
+              </Link>
+            </>
           )}
 
           <div className="flex items-center gap-3">

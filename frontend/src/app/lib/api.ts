@@ -138,3 +138,9 @@ export function getOrderById(orderId: string, accessToken: string): Promise<Orde
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }
+
+export function getMyOrders(accessToken: string): Promise<OrderResponse[]> {
+  return request<OrderResponse[]>('/orders/me', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
