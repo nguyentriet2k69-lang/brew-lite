@@ -43,41 +43,50 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <header className="max-w-4xl mx-auto flex justify-between items-center pb-6 mb-6 border-b">
+            <header className="max-w-4xl mx-auto flex justify-between items-center pb-6 mb-6 border-b">
         <h1 className="text-2xl font-bold text-emerald-700">BrewLite</h1>
-        <Link
-          href="/cart"
-          className="bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition"
-        >
-          Giỏ hàng
-          {cartQuantity > 0 && (
-            <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-xs font-bold text-white">
-              {cartQuantity}
-            </span>
+        
+        {/* GOM GIỎ HÀNG VÀ THÔNG TIN USER VỀ BÊN PHẢI */}
+        <div className="flex items-center gap-4">
+          
+          {/* CHỈ HIỆN NÚT GIỎ HÀNG KHI ĐÃ ĐĂNG NHẬP (user khác null) */}
+          {user && (
+            <Link
+              href="/cart"
+              className="bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition"
+            >
+              Giỏ hàng
+              {cartQuantity > 0 && (
+                <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-xs font-bold text-white">
+                  {cartQuantity}
+                </span>
+              )}
+            </Link>
           )}
-        </Link>
-        <div className="flex items-center gap-3">
-          {user ? (
-            <>
-              <span className="text-sm text-gray-600">Xin chào, {user.name}</span>
-              <button
-                type="button"
-                onClick={clearSession}
-                className="text-sm font-medium text-emerald-700 hover:underline"
-              >
-                Đăng xuất
-              </button>
-            </>
-          ) : (
-            <>
-              <Link href="/login" className="text-sm font-medium text-gray-700 hover:text-emerald-700">
-                Đăng nhập
-              </Link>
-              <Link href="/register" className="text-sm font-medium text-emerald-700 hover:underline">
-                Đăng ký
-              </Link>
-            </>
-          )}
+
+          <div className="flex items-center gap-3">
+            {user ? (
+              <>
+                <span className="text-sm text-gray-600">Xin chào, {user.name}</span>
+                <button
+                  type="button"
+                  onClick={clearSession}
+                  className="text-sm font-medium text-emerald-700 hover:underline"
+                >
+                  Đăng xuất
+                </button>
+              </>
+            ) : (
+              <>
+                <Link href="/login" className="text-sm font-medium text-gray-700 hover:text-emerald-700">
+                  Đăng nhập
+                </Link>
+                <Link href="/register" className="text-sm font-medium text-emerald-700 hover:underline">
+                  Đăng ký
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
