@@ -1,7 +1,9 @@
 import type { Product, Size } from '../types/product';
 import type { AuthResponse, LoginInput, RegisterInput } from '../types/auth';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_URL = typeof window === 'undefined' 
+  ? 'http://backend:3000' 
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000');
 
 export type OrderStatus = 'PENDING' | 'PAID' | 'PAYMENT_FAILED' | 'CANCELLED';
 export type PaymentMethod = 'WALLET' | 'CARD';
@@ -133,6 +135,12 @@ export function createPayment(
 
 export function getOrderById(orderId: string, accessToken: string): Promise<OrderResponse> {
   return request<OrderResponse>(`/orders/${encodeURIComponent(orderId)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export function getMyOrders(accessToken: string): Promise<OrderResponse[]> {
+  return request<OrderResponse[]>('/orders/me', {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }

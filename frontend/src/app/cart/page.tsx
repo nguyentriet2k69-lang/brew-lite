@@ -26,16 +26,23 @@ export default function CartPage() {
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
   const totalPrice = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
 
-  const handleCheckout = async () => {
+    const handleCheckout = async () => {
     setCheckoutError(null);
     setCheckingOut(true);
 
     try {
-      // Auth state is persisted with skipHydration, so hydrate before checking it.
       await useAuthStore.persist.rehydrate();
       const accessToken = useAuthStore.getState().accessToken;
       if (!accessToken) {
         router.push('/login?returnTo=%2Fcart');
+        return;
+      }
+
+      // KIỂM TRA XEM CÓ ĐƠN HÀNG ĐANG DỞ NÀO KHÔNG
+      const pendingOrderId = localStorage.getItem('pendingOrderId');
+      if (pendingOrderId) {
+        // Nếu có, chuyển thẳng đến trang thanh toán của đơn đó, KHÔNG tạo đơn mới
+        router.push(`/checkout/${encodeURIComponent(pendingOrderId)}`);
         return;
       }
 
@@ -51,7 +58,9 @@ export default function CartPage() {
         accessToken,
       );
 
-      // Keep the persisted cart until a payment response confirms success.
+      // LƯU LẠI MÃ ĐƠN VÀO BỘ NHỚ TRÌNH DUYỆT
+      localStorage.setItem('pendingOrderId', order.id);
+      
       router.push(`/checkout/${encodeURIComponent(order.id)}`);
     } catch (requestError) {
       setCheckoutError(
