@@ -7,6 +7,16 @@ describe('order pricing', () => {
     expect(calcUnitPrice(30000, 'L', [])).toBe(39000);
   });
 
+  it('uses active database options when they are available', () => {
+    const options = [
+      { type: 'SIZE', name: 'S', price: -5000 },
+      { type: 'SIZE', name: 'M', price: 0 },
+      { type: 'SIZE', name: 'L', price: 10000 },
+      { type: 'TOPPING', name: 'Trân châu', price: 9000 },
+    ];
+    expect(calcUnitPrice(30000, 'S', ['Trân châu'], options)).toBe(34000);
+  });
+
   it('uses the configured price for each allowlisted topping', () => {
     expect(calcUnitPrice(30000, 'M', ['Trân châu'])).toBe(40000);
     expect(calcUnitPrice(30000, 'S', ['Kem cheese', 'Pudding'])).toBe(51000);

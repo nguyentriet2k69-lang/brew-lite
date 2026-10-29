@@ -20,11 +20,13 @@ const makeOrder = (status = OrderStatus.PENDING) => ({
 describe('PaymentsService', () => {
   const prismaMock = {
     order: { findFirst: jest.fn() },
+    payment: { findUnique: jest.fn() },
     $transaction: jest.fn(),
   };
   const txMock = {
     order: { findFirst: jest.fn(), updateMany: jest.fn() },
     payment: { create: jest.fn() },
+    user: { update: jest.fn() },
   };
   const gatewayMock = { execute: jest.fn() };
   let service: PaymentsService;
@@ -36,6 +38,7 @@ describe('PaymentsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    prismaMock.payment.findUnique.mockResolvedValue(undefined);
     const order = makeOrder();
     prismaMock.order.findFirst.mockResolvedValue(order);
     txMock.order.findFirst.mockResolvedValue(order);
@@ -48,6 +51,7 @@ describe('PaymentsService', () => {
       status: PaymentStatus.SUCCEEDED,
       createdAt: new Date('2026-10-22T12:00:00.000Z'),
     });
+    txMock.user.update.mockResolvedValue({});
     prismaMock.$transaction.mockImplementation(
       (callback: (tx: typeof txMock) => Promise<unknown>) => callback(txMock),
     );
@@ -83,6 +87,10 @@ describe('PaymentsService', () => {
       amount: 123000,
       status: PaymentStatus.SUCCEEDED,
       orderStatus: OrderStatus.PAID,
+    });
+    expect(txMock.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: { loyaltyPoints: { increment: 12 } },
     });
   });
 
@@ -175,5 +183,45 @@ describe('PaymentsService', () => {
 
     await expect(service.create('user-1', dto())).rejects.toThrow(ConflictException);
     expect(txMock.payment.create).not.toHaveBeenCalled();
+  });
+
+  it('returns the committed payment when a concurrent retry loses the order update', async () => {
+    const key = 'concurrent-payment-key';
+    const storedPayment = {
+      id: 'payment-committed', orderId: 'order-123', amount: makeOrder().totalAmount,
+      method: PaymentMethod.WALLET, status: PaymentStatus.SUCCEEDED,
+      createdAt: new Date('2026-10-22T12:00:00.000Z'),
+      order: { id: 'order-123', userId: 'user-1', code: 'ORD-20261022-ABC123', status: OrderStatus.PAID },
+    };
+    txMock.order.updateMany.mockResolvedValue({ count: 0 });
+    prismaMock.payment.findUnique.mockResolvedValue(storedPayment);
+
+    await expect(service.create('user-1', {
+      orderId: 'order-123', method: PaymentMethod.WALLET, idempotencyKey: key,
+    })).resolves.toMatchObject({
+      id: 'payment-committed',
+      orderId: 'order-123',
+      status: PaymentStatus.SUCCEEDED,
+      orderStatus: OrderStatus.PAID,
+    });
+    expect(txMock.payment.create).not.toHaveBeenCalled();
+  });
+
+  it('returns the original result for a repeated idempotency key', async () => {
+    const key = 'payment-attempt-1';
+    const first = await service.create('user-1', { orderId: 'order-123', method: PaymentMethod.WALLET, idempotencyKey: key });
+    const storedPayment = {
+      id: 'payment-123', orderId: 'order-123', amount: makeOrder().totalAmount,
+      method: PaymentMethod.WALLET, status: PaymentStatus.SUCCEEDED,
+      createdAt: new Date('2026-10-22T12:00:00.000Z'),
+      order: { id: 'order-123', userId: 'user-1', code: 'ORD-20261022-ABC123', status: OrderStatus.PAID },
+    };
+    prismaMock.payment.findUnique.mockResolvedValue(storedPayment);
+
+    const second = await service.create('user-1', { orderId: 'order-123', method: PaymentMethod.WALLET, idempotencyKey: key });
+
+    expect(second).toEqual(first);
+    expect(gatewayMock.execute).toHaveBeenCalledTimes(1);
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
   });
 });

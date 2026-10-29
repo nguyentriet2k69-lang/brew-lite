@@ -9,19 +9,16 @@ export default function OrderHistoryPage() {
   const [orders, setOrders] = useState<OrderResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { accessToken, user } = useAuthStore();
+  const { accessToken } = useAuthStore();
 
   useEffect(() => {
     if (!accessToken) {
-      setLoading(false);
       return;
     }
 
     getMyOrders(accessToken)
       .then((data) => {
-        // Chỉ lấy những đơn đã hoàn thành hoặc đã hủy
-        const validOrders = data.filter((o) => o.status !== 'PENDING');
-        setOrders(validOrders);
+        setOrders(data);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -30,6 +27,9 @@ export default function OrderHistoryPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'PAID': return 'text-green-600 bg-green-50';
+      case 'PREPARING': return 'text-blue-600 bg-blue-50';
+      case 'READY': return 'text-indigo-600 bg-indigo-50';
+      case 'COMPLETED': return 'text-emerald-700 bg-emerald-50';
       case 'PENDING': return 'text-yellow-600 bg-yellow-50';
       case 'PAYMENT_FAILED': return 'text-red-600 bg-red-50';
       case 'CANCELLED': return 'text-gray-600 bg-gray-50';

@@ -22,6 +22,11 @@ export class ProductsController {
     return this.productsService.findOne(id);
   }
 
+  @Get(':id/options')
+  findOptions(@Param('id') id: string) {
+    return this.productsService.findOptions(id);
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(USER_ROLES.ADMIN)

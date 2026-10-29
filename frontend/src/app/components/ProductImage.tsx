@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 
 const FALLBACK_IMAGE = '/images/product-placeholder.svg';
 
@@ -15,11 +16,14 @@ export default function ProductImage({ src, alt, className }: ProductImageProps)
   const imageSrc = src && !imageFailed ? src : FALLBACK_IMAGE;
 
   return (
-    <img
+    <Image
       src={imageSrc}
       alt={alt}
+      width={800}
+      height={800}
       className={className}
       onError={() => setImageFailed(true)}
+      unoptimized
     />
   );
 }

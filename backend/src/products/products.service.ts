@@ -11,6 +11,10 @@ interface ProductRecord {
   category: string;
   createdAt: Date;
   updatedAt: Date;
+  isAvailable?: boolean;
+  stock?: number;
+  version?: number;
+  options?: unknown[];
 }
 
 @Injectable()
@@ -19,15 +23,25 @@ export class ProductsService {
 
   async findAll() {
     const products: ProductRecord[] = await this.prisma.product.findMany({
+      where: { isAvailable: true },
       orderBy: { createdAt: 'desc' },
+      include: { options: { where: { isActive: true }, orderBy: [{ type: 'asc' }, { name: 'asc' }] } },
     });
     return products.map((product: ProductRecord) => this.toResponse(product));
   }
 
   async findOne(id: string) {
-    const product: ProductRecord | null = await this.prisma.product.findUnique({ where: { id } });
+    const product: ProductRecord | null = await this.prisma.product.findFirst({ where: { id, isAvailable: true }, include: { options: true } });
     if (!product) throw new NotFoundException('Product not found');
     return this.toResponse(product);
+  }
+
+  async findOptions(id: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id, isAvailable: true }, select: { id: true, options: { where: { isActive: true }, orderBy: [{ type: 'asc' }, { name: 'asc' }] } },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    return product.options;
   }
 
   async create(dto: CreateProductDto) {
@@ -44,6 +58,14 @@ export class ProductsService {
   }
 
   private toResponse(product: ProductRecord) {
-    return { ...product, price: Number(product.price) };
+    return {
+      ...product,
+      price: Number(product.price),
+      stock: product.stock ?? 0,
+      options: (product.options ?? []).map((option) => ({
+        ...(option as Record<string, unknown>),
+        price: Number((option as { price: unknown }).price),
+      })),
+    };
   }
 }

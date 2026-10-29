@@ -9,12 +9,16 @@ datasource db {
 
 enum UserRole {
   USER
+  STAFF
   ADMIN
 }
 
 enum OrderStatus {
   PENDING
   PAID
+  PREPARING
+  READY
+  COMPLETED
   PAYMENT_FAILED
   CANCELLED
 }
@@ -35,6 +39,7 @@ model User {
   password  String
   name      String
   role      UserRole @default(USER)
+  loyaltyPoints Int  @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -48,12 +53,29 @@ model Product {
   price       Decimal  @db.Decimal(10, 2)
   imageUrl    String
   category    String
+  isAvailable Boolean  @default(true)
+  stock       Int      @default(0)
+  version     Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   orderItems OrderItem[]
+  options    ProductOption[]
 
   @@index([category])
+}
+
+model ProductOption {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type      String
+  name      String
+  price     Decimal  @db.Decimal(10, 2)
+  isActive  Boolean  @default(true)
+
+  @@unique([productId, type, name])
+  @@index([productId, type])
 }
 
 model Order {
@@ -63,6 +85,8 @@ model Order {
   user        User        @relation(fields: [userId], references: [id])
   status      OrderStatus @default(PENDING)
   totalAmount Decimal     @db.Decimal(10, 2)
+  discountAmount Decimal  @default(0) @db.Decimal(10, 2)
+  couponCode   String?
   items       OrderItem[]
   payments    Payment[]
   createdAt   DateTime    @default(now())
@@ -70,6 +94,13 @@ model Order {
 
   @@index([userId])
   @@index([status])
+}
+
+model Coupon {
+  code            String   @id
+  discountPercent Int
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
 }
 
 model OrderItem {
@@ -92,11 +123,12 @@ model Payment {
   id             String        @id @default(cuid())
   orderId        String
   order          Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  // Reserved for Task 10; Task 8 does not yet implement idempotency semantics.
   idempotencyKey String?       @unique
   amount         Decimal       @db.Decimal(10, 2)
   method         PaymentMethod
   status         PaymentStatus
+  provider       String         @default("mock")
+  transactionId  String?
   createdAt      DateTime      @default(now())
 
   @@index([orderId])

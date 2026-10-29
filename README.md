@@ -1,7 +1,7 @@
 # ☕ BrewLite - Ứng dụng Đặt Cà phê Không tiền mặt
 
 > **Kiến trúc:** Monorepo (Next.js + NestJS + PostgreSQL)  
-> **Quy trình phát triển:** Agile Scrum (Tasks 1 - 9)  
+> **Quy trình phát triển:** Agile Scrum (Tasks 1 - 10)
 > **Repository:** [https://github.com/nguyentriet2k69-lang/brew-lite](https://github.com/nguyentriet2k69-lang/brew-lite)
 
 ---
@@ -59,6 +59,9 @@ Phương pháp này tự động khởi tạo Database, nạp dữ liệu mẫu 
 - ⚙️ **Truy cập API Backend:** [http://localhost:3000](http://localhost:3000)
 
 > **Lưu ý:** Hệ thống đã được cấu hình tự động chạy file `seed.mjs` để tạo sẵn dữ liệu mẫu và tài khoản Admin mỗi khi khởi động.
+> Docker Compose dùng các biến môi trường development mặc định trong file compose, vì vậy không cần tạo `backend/.env` trước khi chạy.
+
+> Nếu máy đã có database BrewLite cũ từ branch trước với migration history khác, hãy dùng một database/volume mới trước khi chạy migration. Không chạy migration mới trên database cũ không cùng lịch sử migration.
 
 ### Cách 2: Chạy thủ công (Local)
 
@@ -72,18 +75,39 @@ Phương pháp này tự động khởi tạo Database, nạp dữ liệu mẫu 
     Copy-Item backend/.env.example backend/.env
     Copy-Item frontend/.env.example frontend/.env.local
 
-*(Hãy mở file `backend/.env` và thay đổi `JWT_SECRET` dài ít nhất 32 ký tự).*
+*(Nếu đã có `backend/.env`, giữ lại các secret hiện có và cập nhật `DATABASE_URL` thành `postgresql://brewlite:brewlite@127.0.0.1:5433/brewlite?schema=public`. Đổi `JWT_SECRET` thành chuỗi riêng dài ít nhất 32 ký tự.)*
 
 **Bước 3: Khởi động Database & Nạp dữ liệu**
 
     docker compose up -d postgres
     npm --prefix backend run prisma:generate
-    npm --prefix backend run prisma:migrate -- --name init
+    npm --prefix backend run prisma:migrate
     npm --prefix backend run prisma:seed
+
+> PostgreSQL trong Compose được publish tại `127.0.0.1:5433` để tránh nhầm với PostgreSQL cài sẵn trên máy. `backend/.env.example` đã dùng đúng địa chỉ này.
 
 **Bước 4: Chạy ứng dụng (Mở 2 Terminal riêng biệt)**
 - **Terminal 1 (Backend):** `npm --prefix backend run start:dev`
 - **Terminal 2 (Frontend):** `npm --prefix frontend run dev -- --port 3001`
+
+### Chạy kiểm thử integration Task 10
+
+Sau khi PostgreSQL đã chạy và `DATABASE_URL` trỏ tới database test, chạy:
+
+    npm --prefix backend run prisma:migrate:deploy
+    npm --prefix backend run prisma:seed
+    npm --prefix backend run test:e2e -- --runInBand
+
+Các test này kiểm tra state machine, đặt hàng đồng thời không vượt tồn kho, idempotency payment đồng thời, coupon và loyalty points trên PostgreSQL thật. Bản `.env` dùng cho test phải trỏ tới Compose DB `127.0.0.1:5433`, không phải PostgreSQL khác đang chạy trên máy.
+Trước đó phải áp dụng đầy đủ migration bằng `npm --prefix backend run prisma:migrate:deploy`. Nếu migration báo lỗi enum/table đã tồn tại, kiểm tra lịch sử `_prisma_migrations` và dùng database test mới; không sửa hoặc xóa volume đang chứa dữ liệu cần giữ.
+
+### Kiểm tra độ trễ API
+
+Khi Docker Compose đã healthy, có thể đo nhanh endpoint menu với PowerShell:
+
+    1..20 | ForEach-Object { (Measure-Command { Invoke-RestMethod http://localhost:3000/products | Out-Null }).TotalMilliseconds }
+
+Với database và dữ liệu mẫu trên máy phát triển, từng request dự kiến dưới 500ms; đây là phép đo smoke-test, không phải cam kết SLA tải production.
 
 ---
 
@@ -184,3 +208,15 @@ Hệ thống sử dụng cổng thanh toán giả lập (Mock Payment Gateway), 
 - [x] **Task 7:** Đăng ký/Đăng nhập, bảo mật JWT, phân quyền User/Admin.
 - [x] **Task 8:** Tích hợp thanh toán Mock, xử lý luồng thành công/thất bại.
 - [x] **Task 9:** Xây dựng trang Xác nhận đơn hàng, trang Lịch sử đơn hàng, cấu hình Docker Compose chạy 3 service.
+- [x] **Task 10:** State machine đơn hàng, idempotent payment, giữ tồn kho bằng transaction/conditional update, mã `WELCOME10` giảm 10% và cộng loyalty points sau khi thanh toán thành công.
+
+### Ánh xạ tên trường nghiệp vụ
+
+Một số tên trong Prisma/API cụ thể hóa cùng ý nghĩa nghiệp vụ: `User.password` chỉ lưu bcrypt hash (`passwordHash`), `Order.totalAmount` là tổng đơn (`total`), `OrderItem.quantity` là số lượng (`qty`), và `OrderItem.subtotal` là thành tiền dòng (`lineTotal`). Không có trường hợp nào trả mật khẩu/hash trong API.
+
+### Task 10
+
+- Trạng thái hợp lệ: `PENDING → PAID → PREPARING → READY → COMPLETED`; có nhánh `PAYMENT_FAILED` và `CANCELLED`.
+- Payment hỗ trợ header `Idempotency-Key`; cùng key không tạo thêm payment.
+- Đặt hàng atomically giảm stock; nếu không đủ tồn kho transaction bị rollback.
+- Có thể nhập mã `WELCOME10` ở giỏ hàng. Loyalty points được cộng khi payment thành công.

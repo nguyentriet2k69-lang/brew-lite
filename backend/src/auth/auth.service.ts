@@ -52,6 +52,12 @@ export class AuthService {
     return this.createSession(user);
   }
 
+  async me(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('User no longer exists');
+    return { id: user.id, email: user.email, name: user.name, role: user.role };
+  }
+
   private createSession(user: User) {
     const accessToken = jwt.sign(
       { email: user.email, role: user.role },

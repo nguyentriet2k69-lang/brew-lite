@@ -6,6 +6,7 @@ export interface Product {
   imageUrl?: string;
   description?: string;
   stock?: number;
+  options?: Array<{ type: string; name: string; price: number; isActive?: boolean }>;
 }
 
 export type Size = 'S' | 'M' | 'L';

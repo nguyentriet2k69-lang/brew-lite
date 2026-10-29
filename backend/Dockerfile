@@ -41,4 +41,4 @@ COPY --from=builder /app/dist ./dist
 EXPOSE 3000
 
 # Tự động đồng bộ DB -> Nạp seed -> Chạy server
-CMD ["sh", "-c", "npx prisma db push && node prisma/seed.mjs && node dist/main"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node prisma/seed.mjs && node dist/main"]

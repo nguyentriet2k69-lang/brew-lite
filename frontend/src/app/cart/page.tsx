@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { createOrder } from '@/app/lib/api';
+import { createOrder, getOrderById } from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/useAuthStore';
 import { useCartStore } from '@/app/store/useCartStore';
 
@@ -17,6 +17,7 @@ export default function CartPage() {
   const [loaded, setLoaded] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [couponCode, setCouponCode] = useState('');
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setLoaded(true));
@@ -32,18 +33,26 @@ export default function CartPage() {
 
     try {
       await useAuthStore.persist.rehydrate();
-      const accessToken = useAuthStore.getState().accessToken;
+      const { accessToken, user } = useAuthStore.getState();
       if (!accessToken) {
         router.push('/login?returnTo=%2Fcart');
         return;
       }
+      if (!user) throw new Error('Vui lòng đăng nhập lại trước khi thanh toán.');
+      const pendingOrderKey = `pendingOrderId:${user.id}`;
 
-      // KIỂM TRA XEM CÓ ĐƠN HÀNG ĐANG DỞ NÀO KHÔNG
-      const pendingOrderId = localStorage.getItem('pendingOrderId');
+      const pendingOrderId = localStorage.getItem(pendingOrderKey);
       if (pendingOrderId) {
-        // Nếu có, chuyển thẳng đến trang thanh toán của đơn đó, KHÔNG tạo đơn mới
-        router.push(`/checkout/${encodeURIComponent(pendingOrderId)}`);
-        return;
+        try {
+          const pendingOrder = await getOrderById(pendingOrderId, accessToken);
+          if (pendingOrder.status === 'PENDING' || pendingOrder.status === 'PAYMENT_FAILED') {
+            router.push(`/checkout/${encodeURIComponent(pendingOrderId)}`);
+            return;
+          }
+        } catch {
+          // Stored order may have been deleted or may no longer belong to this account.
+        }
+        localStorage.removeItem(pendingOrderKey);
       }
 
       const order = await createOrder(
@@ -54,12 +63,13 @@ export default function CartPage() {
             toppings: item.toppings.map((topping) => topping.name),
             quantity: item.quantity,
           })),
+          ...(couponCode.trim() ? { couponCode: couponCode.trim() } : {}),
         },
         accessToken,
       );
 
       // LƯU LẠI MÃ ĐƠN VÀO BỘ NHỚ TRÌNH DUYỆT
-      localStorage.setItem('pendingOrderId', order.id);
+      localStorage.setItem(pendingOrderKey, order.id);
       
       router.push(`/checkout/${encodeURIComponent(order.id)}`);
     } catch (requestError) {
@@ -142,6 +152,18 @@ export default function CartPage() {
             </article>
           ))}
         </div>
+
+        <label className="mt-5 block text-sm font-medium text-gray-700">
+          Mã giảm giá (tùy chọn)
+          <input
+            value={couponCode}
+            onChange={(event) => setCouponCode(event.target.value)}
+            placeholder="Ví dụ: WELCOME10"
+            maxLength={30}
+            disabled={checkingOut}
+            className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 uppercase outline-none focus:border-emerald-600"
+          />
+        </label>
 
         <footer className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-gray-200 pt-5">
           <div>

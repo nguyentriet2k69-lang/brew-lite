@@ -1,12 +1,14 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { calcUnitPrice, isToppingName, type ToppingName } from './pricing';
+import { assertTransition } from './state-machine';
 
 function generateOrderCode(): string {
   const now = new Date();
@@ -26,6 +28,7 @@ export class OrdersService {
     const productIds = [...new Set(dto.items.map((i) => i.productId))];
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds } },
+      include: { options: true },
     });
 
     if (products.length !== productIds.length) {
@@ -41,6 +44,9 @@ export class OrdersService {
     // 2. Tính giá từng item + tổng
     const itemsData = dto.items.map((item) => {
       const product = productMap.get(item.productId)!;
+      if (product.isAvailable === false) {
+        throw new BadRequestException(`Sản phẩm tạm hết: ${product.name}`);
+      }
       const duplicateToppings =
         new Set(item.toppings).size !== item.toppings.length;
       if (duplicateToppings) {
@@ -53,7 +59,17 @@ export class OrdersService {
         }
         return topping;
       });
-      const unitPrice = calcUnitPrice(Number(product.price), item.size, toppings);
+      const unitPrice = calcUnitPrice(
+        Number(product.price),
+        item.size,
+        toppings,
+        (product.options ?? []).map((option) => ({
+          type: option.type,
+          name: option.name,
+          price: Number(option.price),
+          isActive: option.isActive,
+        })),
+      );
       const subtotal = unitPrice * item.quantity;
 
       return {
@@ -67,23 +83,51 @@ export class OrdersService {
       };
     });
 
-    const totalAmount = itemsData.reduce(
+    const subtotalAmount = itemsData.reduce(
       (sum, i) => sum + Number(i.subtotal),
       0,
     );
 
-    if (totalAmount <= 0) {
+    if (subtotalAmount <= 0) {
       throw new BadRequestException('Tổng tiền đơn hàng không hợp lệ');
     }
+    const couponCode = dto.couponCode?.trim().toUpperCase();
 
     // 3. Tạo order + items trong transaction
     const order = await this.prisma.$transaction(async (tx) => {
+      const coupon = couponCode
+        ? await tx.coupon.findUnique({ where: { code: couponCode } })
+        : null;
+      if (couponCode && (!coupon || !coupon.isActive)) {
+        throw new BadRequestException('Mã giảm giá không hợp lệ');
+      }
+      const discountAmount = coupon
+        ? Math.floor((subtotalAmount * coupon.discountPercent) / 100)
+        : 0;
+      const totalAmount = subtotalAmount - discountAmount;
+
+      const requiredStock = new Map<string, number>();
+      for (const item of dto.items) {
+        requiredStock.set(item.productId, (requiredStock.get(item.productId) ?? 0) + item.quantity);
+      }
+      for (const [productId, quantity] of requiredStock) {
+        const updated = await tx.product.updateMany({
+          where: { id: productId, isAvailable: true, stock: { gte: quantity } },
+          data: { stock: { decrement: quantity }, version: { increment: 1 } },
+        });
+        if (updated.count !== 1) {
+          throw new ConflictException('Sản phẩm không đủ tồn kho');
+        }
+      }
+
       return tx.order.create({
         data: {
           code: generateOrderCode(),
           userId,
           status: 'PENDING',
           totalAmount: new Prisma.Decimal(totalAmount),
+          discountAmount: new Prisma.Decimal(discountAmount),
+          couponCode,
           items: {
             create: itemsData,
           },
@@ -115,12 +159,43 @@ export class OrdersService {
     return this.serialize(order);
   }
 
+  async updateStatus(orderId: string, status: OrderStatus) {
+    try {
+      const order = await this.prisma.$transaction(async (tx) => {
+        const current = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
+        if (!current) throw new NotFoundException('Không tìm thấy đơn hàng');
+        assertTransition(current.status, status);
+        if (status === OrderStatus.CANCELLED) {
+          const quantities = new Map<string, number>();
+          for (const item of current.items) {
+            quantities.set(item.productId, (quantities.get(item.productId) ?? 0) + item.quantity);
+          }
+          for (const [productId, quantity] of quantities) {
+            await tx.product.update({
+              where: { id: productId },
+              data: { stock: { increment: quantity }, version: { increment: 1 } },
+            });
+          }
+        }
+        return tx.order.update({ where: { id: orderId }, data: { status }, include: { items: true } });
+      });
+      return this.serialize(order);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new NotFoundException('Không tìm thấy đơn hàng');
+      }
+      throw error;
+    }
+  }
+
   private serialize(order: {
     id: string;
     code: string;
     userId: string;
     status: string;
     totalAmount: Prisma.Decimal;
+    discountAmount?: Prisma.Decimal;
+    couponCode?: string | null;
     createdAt: Date;
     updatedAt: Date;
     items: Array<{
@@ -140,6 +215,8 @@ export class OrdersService {
       userId: order.userId,
       status: order.status,
       totalAmount: Number(order.totalAmount),
+      discountAmount: Number(order.discountAmount ?? 0),
+      couponCode: order.couponCode ?? null,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
       items: order.items.map((i) => ({

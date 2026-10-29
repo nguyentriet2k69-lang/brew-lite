@@ -8,6 +8,7 @@ import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { MockPaymentGateway } from './mock-payment.gateway';
+import { assertTransition } from '../orders/state-machine';
 
 type PayableOrder = {
   id: string;
@@ -24,6 +25,17 @@ export class PaymentsService {
   ) {}
 
   async create(userId: string, dto: CreatePaymentDto) {
+    if (dto.idempotencyKey) {
+      const previous = await this.prisma.payment.findUnique({
+        where: { idempotencyKey: dto.idempotencyKey }, include: { order: true },
+      });
+      if (previous) {
+        if (previous.order.userId !== userId || previous.method !== dto.method) {
+          throw new ConflictException('Idempotency key đã được dùng cho giao dịch khác');
+        }
+        return this.serialize(previous, previous.order.status);
+      }
+    }
     const order = await this.prisma.order.findFirst({
       where: { id: dto.orderId, userId },
       select: { id: true, code: true, status: true, totalAmount: true },
@@ -43,6 +55,23 @@ export class PaymentsService {
         where: { id: dto.orderId, userId },
         select: { id: true, code: true, status: true, totalAmount: true },
       });
+      if (
+        dto.idempotencyKey &&
+        currentOrder &&
+        currentOrder.status !== OrderStatus.PENDING &&
+        currentOrder.status !== OrderStatus.PAYMENT_FAILED
+      ) {
+        const previous = await this.prisma.payment.findUnique({
+          where: { idempotencyKey: dto.idempotencyKey },
+          include: { order: true },
+        });
+        if (previous) {
+          if (previous.order.userId !== userId || previous.method !== dto.method) {
+            throw new ConflictException('Idempotency key đã được dùng cho giao dịch khác');
+          }
+          return this.serialize(previous, previous.order.status);
+        }
+      }
       this.assertPayableOrder(currentOrder);
 
       // Reject a state change between the pre-check and transaction. Full
@@ -62,10 +91,28 @@ export class PaymentsService {
         data: { status: nextOrderStatus },
       });
       if (updated.count !== 1) {
+        // A concurrent request with the same idempotency key may have
+        // completed the payment while this transaction was waiting on the
+        // order row. Return that committed result instead of turning a safe
+        // retry into a 409 response.
+        if (dto.idempotencyKey) {
+          const previous = await this.prisma.payment.findUnique({
+            where: { idempotencyKey: dto.idempotencyKey },
+            include: { order: true },
+          });
+          if (previous) {
+            if (previous.order.userId !== userId || previous.method !== dto.method) {
+              throw new ConflictException('Idempotency key đã được dùng cho giao dịch khác');
+            }
+            return this.serialize(previous, previous.order.status);
+          }
+        }
         throw new ConflictException(
           'Đơn hàng đã được xử lý bởi một yêu cầu khác; vui lòng tải lại đơn hàng',
         );
       }
+
+      assertTransition(currentOrder.status, nextOrderStatus);
 
       const payment = await tx.payment.create({
         data: {
@@ -73,20 +120,45 @@ export class PaymentsService {
           amount: currentOrder.totalAmount,
           method: dto.method,
           status: paymentStatus,
+          idempotencyKey: dto.idempotencyKey,
         },
       });
-
-      return {
-        id: payment.id,
-        orderId: currentOrder.id,
-        orderCode: currentOrder.code,
-        amount: Number(currentOrder.totalAmount),
-        method: payment.method,
-        status: payment.status,
-        orderStatus: nextOrderStatus,
-        createdAt: payment.createdAt,
-      };
+      if (paymentStatus === PaymentStatus.SUCCEEDED) {
+        await tx.user.update({
+          where: { id: userId },
+          data: { loyaltyPoints: { increment: Math.floor(Number(currentOrder.totalAmount) / 10000) } },
+        });
+      }
+      return this.serialize(payment, nextOrderStatus, currentOrder.code, currentOrder.totalAmount);
+    }).catch(async (error: unknown) => {
+      if (dto.idempotencyKey && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const previous = await this.prisma.payment.findUnique({
+          where: { idempotencyKey: dto.idempotencyKey }, include: { order: true },
+        });
+        if (previous && previous.order.userId === userId && previous.method === dto.method) {
+          return this.serialize(previous, previous.order.status);
+        }
+        throw new ConflictException('Idempotency key đã được dùng cho giao dịch khác');
+      }
+      throw error;
     });
+  }
+
+  async findOne(userId: string, paymentId: string) {
+    const payment = await this.prisma.payment.findFirst({
+      where: { id: paymentId, order: { userId } }, include: { order: true },
+    });
+    if (!payment) throw new NotFoundException('Không tìm thấy giao dịch');
+    return this.serialize(payment, payment.order.status);
+  }
+
+  private serialize(payment: any, orderStatus: OrderStatus, orderCode?: string, orderAmount?: Prisma.Decimal) {
+    return {
+      id: payment.id, orderId: payment.orderId, orderCode: orderCode ?? payment.order?.code,
+      amount: Number(orderAmount ?? payment.amount), method: payment.method, status: payment.status,
+      orderStatus, provider: payment.provider ?? 'mock', transactionId: payment.transactionId ?? null,
+      createdAt: payment.createdAt,
+    };
   }
 
   private assertPayableOrder(
