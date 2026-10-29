@@ -7,6 +7,8 @@ import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
+import { HealthModule } from './health/health.module';
+import { UsersModule } from './users/users.module';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -24,6 +26,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     ProductsModule,
     OrdersModule,
     PaymentsModule,
+    HealthModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

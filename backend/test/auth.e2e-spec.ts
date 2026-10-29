@@ -139,6 +139,7 @@ describe('Auth and order protection (e2e)', () => {
         price: 30000,
         imageUrl: 'https://example.com/auth-e2e-product.png',
         category: 'test',
+        stock: 10,
       },
     });
     productId = product.id;

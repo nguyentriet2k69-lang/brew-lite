@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
+  createOrder,
   createPayment,
   getOrderById,
   type OrderResponse,
@@ -20,6 +21,7 @@ export default function CheckoutPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const router = useRouter();
   const clearCart = useCartStore((state) => state.clearCart);
+  const cartItems = useCartStore((state) => state.items);
   const [order, setOrder] = useState<OrderResponse | null>(null);
   const [method, setMethod] = useState<PaymentMethod>('WALLET');
   const [loadingOrder, setLoadingOrder] = useState(true);
@@ -40,6 +42,8 @@ export default function CheckoutPage() {
         setOrder(null);
 
         const accessToken = useAuthStore.getState().accessToken;
+        const user = useAuthStore.getState().user;
+        const pendingOrderKey = user ? `pendingOrderId:${user.id}` : null;
 
         if (!accessToken) {
           router.replace(
@@ -54,9 +58,13 @@ export default function CheckoutPage() {
         if (cancelled || !foundOrder) return;
 
         setOrder(foundOrder);
+        const user = useAuthStore.getState().user;
+        const pendingOrderKey = user ? `pendingOrderId:${user.id}` : null;
 
         if (foundOrder.status === 'PAID') {
-          localStorage.removeItem('pendingOrderId');
+          if (pendingOrderKey && localStorage.getItem(pendingOrderKey) === foundOrder.id) {
+            localStorage.removeItem(pendingOrderKey);
+          }
           setNotice(
             'Đơn hàng này đã được thanh toán. Không thể tạo thêm lần thanh toán mới.',
           );
@@ -66,6 +74,41 @@ export default function CheckoutPage() {
       })
       .catch((requestError: unknown) => {
         if (!cancelled) {
+          const message = requestError instanceof Error ? requestError.message : '';
+          const user = useAuthStore.getState().user;
+          const pendingOrderKey = user ? `pendingOrderId:${user.id}` : null;
+          if (message === 'Không tìm thấy đơn hàng') {
+            if (pendingOrderKey && localStorage.getItem(pendingOrderKey) === orderId) {
+              localStorage.removeItem(pendingOrderKey);
+            }
+            const accessToken = useAuthStore.getState().accessToken;
+            if (accessToken && user && cartItems.length > 0) {
+              void createOrder(
+                {
+                  items: cartItems.map((item) => ({
+                    productId: String(item.id),
+                    size: item.size,
+                    toppings: item.toppings.map((topping) => topping.name),
+                    quantity: item.quantity,
+                  })),
+                },
+                accessToken,
+              ).then((replacementOrder) => {
+                if (cancelled) return;
+                localStorage.setItem(`pendingOrderId:${user.id}`, replacementOrder.id);
+                router.replace(`/checkout/${encodeURIComponent(replacementOrder.id)}`);
+              }).catch((createError: unknown) => {
+                if (!cancelled) {
+                  setError(createError instanceof Error ? createError.message : 'Không thể tạo lại đơn hàng. Vui lòng quay lại giỏ hàng.');
+                  setLoadingOrder(false);
+                }
+              });
+              return;
+            }
+            setError('Đơn hàng này không còn tồn tại. Hãy quay lại giỏ hàng để tạo đơn mới.');
+            setLoadingOrder(false);
+            return;
+          }
           setError(
             requestError instanceof Error
               ? requestError.message
@@ -82,7 +125,7 @@ export default function CheckoutPage() {
     return () => {
       cancelled = true;
     };
-  }, [orderId, router]);
+  }, [cartItems, orderId, router]);
 
   const handlePayment = async () => {
     if (!order || submitting) return;
@@ -98,7 +141,8 @@ export default function CheckoutPage() {
         return;
       }
 
-      const payment = await createPayment({ orderId: order.id, method }, accessToken);
+      const idempotencyKey = globalThis.crypto?.randomUUID?.() ?? `${order.id}-${Date.now()}`;
+      const payment = await createPayment({ orderId: order.id, method, idempotencyKey }, accessToken);
       const responseMatchesOrder =
         payment.orderId === order.id &&
         payment.orderCode === order.code &&
@@ -110,7 +154,13 @@ export default function CheckoutPage() {
         payment.status === 'SUCCEEDED' &&
         payment.orderStatus === 'PAID'
       ) {
-        localStorage.removeItem('pendingOrderId');
+        const user = useAuthStore.getState().user;
+        if (user) {
+          const pendingOrderKey = `pendingOrderId:${user.id}`;
+          if (localStorage.getItem(pendingOrderKey) === order.id) {
+            localStorage.removeItem(pendingOrderKey);
+          }
+        }
         clearCart();
         router.replace(`/confirmation/${encodeURIComponent(order.id)}`);
         return;

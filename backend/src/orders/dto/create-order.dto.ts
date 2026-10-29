@@ -4,6 +4,9 @@ import {
   ArrayMinSize,
   IsArray,
   ValidateNested,
+  IsOptional,
+  IsString,
+  MaxLength,
 } from 'class-validator';
 import { OrderItemDto } from './order-item.dto';
 
@@ -14,4 +17,9 @@ export class CreateOrderDto {
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
   items!: OrderItemDto[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  couponCode?: string;
 }

@@ -1,20 +1,19 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Product, Size, Topping } from '@/app/types/product';
 import { useCartStore } from '@/app/store/useCartStore';
 import ProductImage from './ProductImage';
 
-const AVAILABLE_TOPPINGS: Topping[] = [
+const FALLBACK_TOPPINGS: Topping[] = [
   { id: 1, name: 'Trân châu', price: 10000 },
   { id: 2, name: 'Kem cheese', price: 15000 },
   { id: 3, name: 'Thạch trái cây', price: 8000 },
   { id: 4, name: 'Pudding', price: 12000 },
 ];
 
-const SIZE_MULTIPLIER: Record<Size, number> = { S: 0.8, M: 1, L: 1.3 };
 const SIZES: Size[] = ['S', 'M', 'L'];
 
 export default function ProductDetail({ product }: { product: Product }) {
@@ -22,16 +21,17 @@ export default function ProductDetail({ product }: { product: Product }) {
   const addItem = useCartStore((state) => state.addItem);
   const [selectedSize, setSelectedSize] = useState<Size>('M');
   const [selectedToppingIds, setSelectedToppingIds] = useState<(string | number)[]>([]);
-  const selectedToppings = AVAILABLE_TOPPINGS.filter((topping) =>
+  const availableToppings = product.options?.filter((option) => option.type === 'TOPPING' && option.isActive !== false)
+    .map((option, index) => ({ id: `${option.type}-${option.name}-${index}`, name: option.name, price: option.price }))
+    ?? FALLBACK_TOPPINGS;
+  const sizeAdjustment = product.options?.find((option) => option.type === 'SIZE' && option.name === selectedSize)?.price;
+  const selectedToppings = availableToppings.filter((topping) =>
     selectedToppingIds.includes(topping.id),
   );
-  const totalPrice = useMemo(
-    () =>
-      Math.round(
-        product.price * SIZE_MULTIPLIER[selectedSize] +
-          selectedToppings.reduce((sum, topping) => sum + topping.price, 0),
-      ),
-    [product.price, selectedSize, selectedToppings],
+  const totalPrice = Math.round(
+    product.price +
+      (sizeAdjustment ?? ({ S: product.price * -0.2, M: 0, L: product.price * 0.3 }[selectedSize])) +
+      selectedToppings.reduce((sum, topping) => sum + topping.price, 0),
   );
   const isOutOfStock = (product.stock ?? 1) <= 0;
 
@@ -95,7 +95,7 @@ export default function ProductDetail({ product }: { product: Product }) {
           <fieldset>
             <legend className="mb-3 font-semibold text-gray-800">Chọn topping</legend>
             <div className="space-y-2">
-              {AVAILABLE_TOPPINGS.map((topping) => {
+              {availableToppings.map((topping) => {
                 const checked = selectedToppingIds.includes(topping.id);
                 return (
                   <label

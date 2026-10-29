@@ -7,7 +7,8 @@ services:
       POSTGRES_PASSWORD: brewlite
       POSTGRES_DB: brewlite
     ports:
-      - "5432:5432"
+      # Avoid accidentally connecting to a local PostgreSQL instance on 5432.
+      - "5433:5432"
     volumes:
       - brewlite-postgres:/var/lib/postgresql/data
     healthcheck:
@@ -24,15 +25,22 @@ services:
       - "3000:3000"
     environment:
       - DATABASE_URL=postgresql://brewlite:brewlite@postgres:5432/brewlite?schema=public
-      - JWT_SECRET="${JWT_SECRET:-dev-secret-change-me-in-production}"
+      - JWT_SECRET=brewlite-docker-development-secret-change-me
+      - FRONTEND_ORIGIN=http://localhost:3001
+      - MOCK_PAYMENT_RESULT=success
       - ADMIN_EMAIL=admin@brewlite.com
-      - ADMIN_PASSWORD=123456
+      - ADMIN_PASSWORD=12345678
       - PRISMA_HIDE_UPDATE_MESSAGE=1
       - CHECKPOINT_DISABLE=1
       - PRISMA_DISABLE_TELEMETRY=1
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   frontend:
     build:
@@ -44,7 +52,8 @@ services:
       - NEXT_PUBLIC_API_URL=http://localhost:3000
       - NODE_OPTIONS=--max-old-space-size=4096
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   brewlite-postgres:

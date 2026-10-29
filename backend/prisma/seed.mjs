@@ -12,6 +12,7 @@ const products = [
     price: 25000,
     imageUrl: '/images/ca_phe_den.png',
     category: 'Cà phê',
+    stock: 100,
   },
   {
     id: 'bac-xiu',
@@ -20,6 +21,7 @@ const products = [
     price: 29000,
     imageUrl: '/images/bac_xiu.png',
     category: 'Cà phê',
+    stock: 100,
   },
   {
     id: 'tra-dao-cam-sa',
@@ -28,7 +30,14 @@ const products = [
     price: 35000,
     imageUrl: '/images/tra_dao_cam_sa.png',
     category: 'Trà',
+    stock: 100,
   },
+];
+
+const options = [
+  { type: 'SIZE', name: 'S', price: -5000 }, { type: 'SIZE', name: 'M', price: 0 }, { type: 'SIZE', name: 'L', price: 10000 },
+  { type: 'TOPPING', name: 'Trân châu', price: 10000 }, { type: 'TOPPING', name: 'Kem cheese', price: 15000 },
+  { type: 'TOPPING', name: 'Thạch trái cây', price: 8000 }, { type: 'TOPPING', name: 'Pudding', price: 12000 },
 ];
 
 async function main() {
@@ -38,6 +47,32 @@ async function main() {
       update: product,
       create: product,
     });
+    for (const option of options) {
+      await prisma.productOption.upsert({
+        where: { productId_type_name: { productId: product.id, type: option.type, name: option.name } },
+        update: option,
+        create: { ...option, productId: product.id },
+      });
+    }
+  }
+
+  await prisma.coupon.upsert({
+    where: { code: 'WELCOME10' },
+    update: { discountPercent: 10, isActive: true },
+    create: { code: 'WELCOME10', discountPercent: 10, isActive: true },
+  });
+
+  const retainedIds = products.map((product) => product.id);
+  const legacyProducts = await prisma.product.findMany({
+    where: { id: { notIn: retainedIds } },
+    include: { _count: { select: { orderItems: true } } },
+  });
+  for (const product of legacyProducts) {
+    if (product._count.orderItems === 0) {
+      await prisma.product.delete({ where: { id: product.id } });
+    } else {
+      await prisma.product.update({ where: { id: product.id }, data: { isAvailable: false } });
+    }
   }
 
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();

@@ -5,7 +5,7 @@ const API_URL = typeof window === 'undefined'
   ? 'http://backend:3000' 
   : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000');
 
-export type OrderStatus = 'PENDING' | 'PAID' | 'PAYMENT_FAILED' | 'CANCELLED';
+export type OrderStatus = 'PENDING' | 'PAID' | 'PREPARING' | 'READY' | 'COMPLETED' | 'PAYMENT_FAILED' | 'CANCELLED';
 export type PaymentMethod = 'WALLET' | 'CARD';
 export type PaymentAttemptStatus = 'SUCCEEDED' | 'FAILED';
 
@@ -16,6 +16,7 @@ export interface CreateOrderInput {
     toppings: string[];
     quantity: number;
   }>;
+  couponCode?: string;
 }
 
 export interface OrderResponse {
@@ -41,6 +42,7 @@ export interface OrderResponse {
 export interface CreatePaymentInput {
   orderId: string;
   method: PaymentMethod;
+  idempotencyKey?: string;
 }
 
 export interface PaymentResponse {
@@ -57,6 +59,10 @@ export interface PaymentResponse {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, init);
   const body: unknown = await response.json().catch(() => null);
+
+  if (response.status === 401 && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('brew-lite:auth-expired'));
+  }
 
   if (!response.ok) {
     const message =
@@ -128,7 +134,7 @@ export function createPayment(
 ): Promise<PaymentResponse> {
   return request<PaymentResponse>('/payments', {
     method: 'POST',
-    headers: authenticatedHeaders(accessToken),
+    headers: { ...authenticatedHeaders(accessToken), ...(input.idempotencyKey ? { 'Idempotency-Key': input.idempotencyKey } : {}) },
     body: JSON.stringify(input),
   });
 }
