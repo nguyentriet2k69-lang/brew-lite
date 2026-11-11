@@ -45,6 +45,23 @@
 
 ## 4. Hướng dẫn Cài đặt & Chạy dự án
 
+### Deploy production (Vercel + Render)
+
+URL production hiện tại:
+
+- **Frontend:** [https://brew-lite-puce.vercel.app](https://brew-lite-puce.vercel.app)
+- **Backend API:** [https://brew-lite.onrender.com](https://brew-lite.onrender.com)
+- **Health check:** [https://brew-lite.onrender.com/health](https://brew-lite.onrender.com/health)
+
+Cấu hình production:
+
+1. **Railway:** dùng PostgreSQL và lấy public connection string làm `DATABASE_URL` trên Render.
+2. **Render:** deploy `backend/Dockerfile` với Docker build context `backend`; đặt `DATABASE_URL`, `FRONTEND_ORIGIN=https://brew-lite-puce.vercel.app`, `ADMIN_EMAIL` và `ADMIN_PASSWORD`. Có thể để Render tự sinh `JWT_SECRET`.
+3. **Vercel:** import repository với Root Directory `frontend`, rồi đặt `NEXT_PUBLIC_API_URL=https://brew-lite.onrender.com` cho Production.
+4. Sau khi đổi biến môi trường trên Render, redeploy backend để áp dụng cấu hình CORS.
+
+Có thể truy cập production trực tiếp bằng các URL trên. Việc xuất hiện trong kết quả Google Search phụ thuộc vào quá trình Google crawl và index, không được đảm bảo ngay sau khi deploy.
+
 ### Cách 1: Chạy toàn bộ hệ thống bằng Docker (Khuyên dùng)
 
 Phương pháp này tự động khởi tạo Database, nạp dữ liệu mẫu (seed) và chạy cả Frontend lẫn Backend chỉ với một câu lệnh.
